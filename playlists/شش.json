@@ -1,0 +1,37 @@
+{
+  "language.txt": "ar",
+  "vlc_path.txt": "C:\\Program Files\\VideoLAN\\VLC",
+  "playlist_urls.json": [
+    "https://raw.githubusercontent.com/iptv-org/iptv/refs/heads/master/streams/sa.m3u"
+  ],
+  "playlists": {
+    "ss.json": {
+      "name": "ss",
+      "created": "2025-03-29T10:52:51.161651",
+      "last_updated": "2025-03-29T10:53:47.834985",
+      "channels": [
+        {
+          "name": "Al Ekhbariya (1080p)",
+          "url": "https://shd-gcp-live.edgenextcdn.net/live/bitmovin-al-ekhbaria/297b3ef1cd0633ad9cfba7473a686a06/index.m3u8",
+          "logo": "",
+          "group": "",
+          "quality": ""
+        }
+      ]
+    },
+    "شش.json": {
+      "name": "شش",
+      "created": "2025-03-29T10:29:24.388803",
+      "last_updated": "2025-03-29T10:53:38.664032",
+      "channels": [
+        {
+          "name": "Al Ekhbariya (1080p)",
+          "url": "https://shd-gcp-live.edgenextcdn.net/live/bitmovin-al-ekhbaria/297b3ef1cd0633ad9cfba7473a686a06/index.m3u8",
+          "logo": "",
+          "group": "",
+          "quality": ""
+        }
+      ]
+    }
+  }
+}

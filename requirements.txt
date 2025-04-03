@@ -1,0 +1,9 @@
+PyQt6>=6.0.0
+requests>=2.25.0
+chardet>=4.0.0
+python-vlc>=3.0.21203
+pyinstaller>=5.9.0
+pillow>=9.0.0
+# The following are only needed for development
+pytest>=7.0.0
+pytest-qt>=4.0.0
