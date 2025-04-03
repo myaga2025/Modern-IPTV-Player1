@@ -1,0 +1,52 @@
+/* أضف في نهاية الملف */
+
+/* زر ملء الشاشة */
+#player-control-button {
+    background-color: #333333;
+    border: none;
+    border-radius: 5px;
+    padding: 3px;
+    margin: 2px;
+}
+
+#player-control-button:hover {
+    background-color: #555555;
+}
+
+/* حالة زر ملء الشاشة عندما تكون نشطة */
+#player-control-button[fullscreen="true"] {
+    background-color: #0078D7;
+}
+
+#toggle-sidebar-button {
+    background-color: #333333;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    min-width: 20px;
+    max-width: 20px;
+    color: #CCCCCC;
+}
+
+#toggle-sidebar-button:hover {
+    background-color: #555555;
+}
+
+/* تنسيق زر تواصل معنا */
+#contact-us-button {
+    background-color: #0078D7;
+    color: white;
+    border: none;
+    border-radius: 15px;
+    padding: 6px 15px;
+    font-weight: bold;
+    margin-right: 10px;
+}
+
+#contact-us-button:hover {
+    background-color: #1084E0;
+}
+
+#contact-us-button:pressed {
+    background-color: #0067C0;
+}

@@ -9,11 +9,39 @@ from PyQt6.QtGui import QIcon
 
 # Import our new playlist loader
 from playlist_loader import load_playlist_from_url, load_playlist_from_file
-from core.language_manager import LanguageManager
+from core.language_manager import LanguageManager, tr  # Fix: Import tr function here
 # Fix import error - use the correct module name
 from core.url_history import PlaylistURLManager
 from core.playlist_history import PlaylistHistory
 from core.theme_manager import ThemeManager
+
+# Import Xtream client
+from core.xtream_client import XtreamClient
+
+# Add error handling utilities
+import traceback
+
+# Global exception handler to prevent app crashes
+def global_exception_handler(exctype, value, tb):
+    """Global exception handler to prevent crashes"""
+    error_msg = ''.join(traceback.format_exception(exctype, value, tb))
+    print(f"Error occurred:\n{error_msg}")
+    
+    # If we have a UI, show error dialog
+    if QApplication.instance():
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setWindowTitle("خطأ في التطبيق")
+        msg.setText("حدث خطأ غير متوقع في التطبيق")
+        msg.setDetailedText(error_msg)
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.exec()
+    
+    # Don't exit the app, just log the error
+    # The original handler would be: sys.__excepthook__(exctype, value, tb)
+
+# Set the global exception handler
+sys.excepthook = global_exception_handler
 
 def get_python_arch():
     """Returns the Python architecture (32bit or 64bit)"""
@@ -200,6 +228,68 @@ def main():
             myappid = 'mycompany.iptvplayer.v1.0'  # أي معرف فريد
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     
+    # الحصول على مسار مناسب لتخزين بيانات التطبيق (مسار قابل للكتابة)
+    if getattr(sys, 'frozen', False):
+        # تشغيل كتطبيق مجمّد (exe)
+        app_path = os.path.dirname(sys.executable)
+        # استخدام مسار AppData للمستخدم بدلاً من مجلد البرنامج
+        data_dir = os.path.join(os.environ['APPDATA'], 'Modern-IPTV-Player', 'data')
+    else:
+        # تشغيل كمصدر Python
+        app_path = os.path.dirname(os.path.abspath(__file__))
+        data_dir = os.path.join(app_path, 'data')
+    
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # Initialize language first (before any UI operations that need translations)
+    translator = QTranslator()
+    app.installTranslator(translator)
+    lang_manager = LanguageManager()
+    
+    # إنشاء مدير قفل التطبيق
+    from core.pin_lock_manager import PinLockManager
+    pin_manager = PinLockManager(data_dir)
+    
+    # التحقق من وجود قفل نشط (بعد تهيئة إدارة اللغة)
+    if pin_manager.is_pin_enabled():
+        # إظهار مربع حوار الرمز السري
+        from ui.pin_dialog import PinDialog
+        
+        max_attempts = 3
+        attempts = 0
+        pin_verified = False
+        
+        while attempts < max_attempts and not pin_verified:
+            pin_dialog = PinDialog(verification_mode=True)
+            
+            if pin_dialog.exec():
+                entered_pin = pin_dialog.get_pin()
+                if pin_manager.verify_pin(entered_pin):
+                    pin_verified = True
+                else:
+                    attempts += 1
+                    remaining = max_attempts - attempts
+                    
+                    if remaining > 0:
+                        QMessageBox.warning(
+                            None, 
+                            tr("PIN Verification Failed"), 
+                            tr("Incorrect PIN. {attempts_left} attempts remaining.").format(attempts_left=remaining)
+                        )
+                    else:
+                        QMessageBox.critical(
+                            None, 
+                            tr("PIN Verification Failed"), 
+                            tr("Incorrect PIN. Application will close.")
+                        )
+            else:
+                # تم إغلاق نافذة الرمز السري، إنهاء التطبيق
+                return
+        
+        # إنهاء التطبيق إذا لم يتم التحقق من الرمز السري بعد المحاولات المسموح بها
+        if not pin_verified:
+            return
+    
     # عرض نافذة فحص المتطلبات (سيتم انشاؤها فقط إذا كانت أول مرة)
     show_requirements_check = True
     
@@ -223,24 +313,6 @@ def main():
             req_dialog.show_and_wait()
         except Exception as e:
             print(f"خطأ في عرض نافذة فحص المتطلبات: {e}")
-    
-    # الحصول على مسار مناسب لتخزين بيانات التطبيق (مسار قابل للكتابة)
-    if getattr(sys, 'frozen', False):
-        # تشغيل كتطبيق مجمّد (exe)
-        app_path = os.path.dirname(sys.executable)
-        # استخدام مسار AppData للمستخدم بدلاً من مجلد البرنامج
-        data_dir = os.path.join(os.environ['APPDATA'], 'Modern-IPTV-Player', 'data')
-    else:
-        # تشغيل كمصدر Python
-        app_path = os.path.dirname(os.path.abspath(__file__))
-        data_dir = os.path.join(app_path, 'data')
-    
-    os.makedirs(data_dir, exist_ok=True)
-    
-    # Initialize language
-    translator = QTranslator()
-    app.installTranslator(translator)
-    lang_manager = LanguageManager()
     
     # إنشاء المكونات مع تمرير مسار البيانات
     url_manager = PlaylistURLManager(data_dir)
@@ -276,22 +348,37 @@ def main():
     # Import MainWindow here to avoid potential import errors with VLC
     from ui.main_window import MainWindow
     
-    # إنشاء النافذة الرئيسية مع تمرير المكونات التي تم إنشاؤها
-    window = MainWindow(url_manager, playlist_history, theme_manager, lang_manager)
-    
-    # عرض الملاحظة إذا كان التطبيق يُفتح لأول مرة - قبل إظهار النافذة الرئيسية
     try:
-        from core.first_run_notice import NoticeManager
-        notice_manager = NoticeManager()
-        notice_manager.show_notice_if_needed(window)
+        # إنشاء النافذة الرئيسية مع تمرير المكونات التي تم إنشاؤها
+        window = MainWindow(url_manager, playlist_history, theme_manager, lang_manager, pin_manager)
+        
+        # عرض الملاحظة إذا كان التطبيق يُفتح لأول مرة - قبل إظهار النافذة الرئيسية
+        try:
+            from core.first_run_notice import NoticeManager
+            notice_manager = NoticeManager()
+            notice_manager.show_notice_if_needed(window)
+        except Exception as e:
+            print(f"خطأ في عرض الملاحظة: {e}")
+        
+        # Show the main window
+        window.showMaximized()
+        
+        # Run application
+        sys.exit(app.exec())
     except Exception as e:
-        print(f"خطأ في عرض الملاحظة: {e}")
-    
-    # Show the main window
-    window.showMaximized()
-    
-    # Run application
-    sys.exit(app.exec())
+        error_msg = traceback.format_exc()
+        print(f"خطأ في تشغيل التطبيق: {e}\n{error_msg}")
+        
+        # Show error dialog
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setWindowTitle("خطأ في التطبيق")
+        msg.setText("حدث خطأ عند محاولة تشغيل التطبيق")
+        msg.setDetailedText(error_msg)
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.exec()
+        
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

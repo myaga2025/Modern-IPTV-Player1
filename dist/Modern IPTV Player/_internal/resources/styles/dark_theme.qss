@@ -1,0 +1,261 @@
+/* Modern Dark Theme for IPTV Player */
+
+/* Main Application Styles */
+QMainWindow, QDialog {
+    background-color: #222;
+    color: #eee;
+}
+
+QWidget {
+    color: #f0f0f0;
+    background-color: #121212;
+}
+
+/* Menu styling */
+QMenuBar {
+    background-color: #1e1e1e;
+    color: #f0f0f0;
+}
+
+QMenuBar::item {
+    background-color: transparent;
+}
+
+QMenuBar::item:selected {
+    background-color: #3a3a3a;
+}
+
+QMenu {
+    background-color: #333;
+    color: white;
+    border: 1px solid #555;
+}
+
+QMenu::item {
+    padding: 5px 30px 5px 30px;
+}
+
+QMenu::item:selected {
+    background-color: #0078D7;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #555;
+    margin: 5px 0px 5px 0px;
+}
+
+QStatusBar {
+    background-color: #333;
+    color: #ccc;
+    border-top: 1px solid #555;
+}
+
+/* Tabs */
+QTabWidget::pane {
+    border: 1px solid #444;
+    background-color: #2d2d2d;
+}
+
+QTabBar::tab {
+    background-color: #333;
+    color: #ccc;
+    padding: 8px 15px;
+    border: 1px solid #444;
+    border-bottom: none;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+
+QTabBar::tab:selected {
+    background-color: #2d2d2d;
+    color: white;
+}
+
+QTabBar::tab:hover:!selected {
+    background-color: #444;
+}
+
+/* Lists */
+QListWidget {
+    background-color: #1e1e1e;
+    border: 1px solid #2a2a2a;
+    border-radius: 4px;
+}
+
+QListWidget::item {
+    padding: 5px;
+    border-radius: 2px;
+}
+
+QListWidget::item:selected {
+    background-color: #3778b7;
+    color: #f0f0f0;
+}
+
+QListWidget::item:hover:!selected {
+    background-color: #2a2a2a;
+}
+
+/* Buttons */
+QPushButton {
+    background-color: #444;
+    color: white;
+    padding: 6px 12px;
+    border: 1px solid #555;
+    border-radius: 4px;
+}
+
+QPushButton:hover {
+    background-color: #555;
+}
+
+QPushButton:pressed {
+    background-color: #333;
+}
+
+QPushButton:flat {
+    border: none;
+    background-color: transparent;
+}
+
+/* Category Buttons Styles */
+QPushButton.category-button {
+    padding: 8px 16px;
+    border-radius: 18px;
+    background-color: #444;
+    color: #fff;
+    font-weight: bold;
+    border: none;
+    min-width: 100px;
+}
+
+QPushButton.category-button:checked {
+    background-color: #0078D7;
+}
+
+QPushButton.category-button:hover {
+    background-color: #555;
+}
+
+QPushButton.category-button:checked:hover {
+    background-color: #0086ef;
+}
+
+/* Player controls */
+QPushButton#player-control-button {
+    background-color: transparent;
+    border: none;
+    border-radius: 20px;
+    padding: 8px;
+}
+
+QPushButton#player-control-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+QPushButton#player-control-button:pressed {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Line Edit */
+QLineEdit {
+    background-color: #3a3a3a;
+    color: #eee;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 5px;
+    selection-background-color: #0078D7;
+}
+
+QLineEdit:focus {
+    border: 1px solid #0078D7;
+}
+
+/* ComboBox */
+QComboBox {
+    background-color: #3a3a3a;
+    color: #eee;
+    padding: 5px;
+    border: 1px solid #555;
+    border-radius: 4px;
+}
+
+QComboBox:hover {
+    border: 1px solid #777;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 20px;
+    border-left: 1px solid #555;
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #3a3a3a;
+    color: #eee;
+    border: 1px solid #555;
+    selection-background-color: #0078D7;
+}
+
+/* Sliders */
+QSlider::groove:horizontal {
+    height: 8px;
+    background: #2a2a2a;
+    border-radius: 4px;
+}
+
+QSlider::handle:horizontal {
+    background: #3778b7;
+    width: 16px;
+    margin: -4px 0;
+    border-radius: 8px;
+}
+
+QSlider::sub-page:horizontal {
+    background: #3778b7;
+    border-radius: 4px;
+}
+
+/* Scrollbars */
+QScrollBar:horizontal {
+    border: none;
+    background-color: #333;
+    height: 10px;
+    margin: 0px 0px 0px 0px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: #666;
+    min-width: 20px;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background-color: #888;
+}
+
+/* تنسيق خاص للقناة النشطة - تمييز القناة الجاري تشغيلها */
+QTableWidget::item[accessibleText="true"] {
+    background-color: #1a3959;
+    border-left: 4px solid #0078D7;
+    font-weight: bold;
+}
+
+/* الحفاظ على تمييز القناة النشطة حتى عند تحديدها */
+QTableWidget::item:selected[accessibleText="true"] {
+    background-color: #0078D7;
+    color: #f0f0f0;
+    border-left: 4px solid #005fa3;
+    font-weight: bold;
+}
+
+/* إضافة تمييز للقناة النشطة في حالة عدم التحديد النشط للجدول */
+QTableWidget::item:!active[accessibleText="true"] {
+    background-color: #1a3959;
+    border-left: 4px solid #0078D7;
+    font-weight: bold;
+}
