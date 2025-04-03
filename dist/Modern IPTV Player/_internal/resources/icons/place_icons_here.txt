@@ -1,0 +1,11 @@
+Place the following icons here:
+- play.png
+- pause.png
+- stop.png
+- volume.png
+- logo.png (for the About dialog)
+
+You can download free icons from sources like:
+- Material Design Icons (https://materialdesignicons.com/)
+- Feather Icons (https://feathericons.com/)
+- Font Awesome (https://fontawesome.com/)

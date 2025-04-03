@@ -18,10 +18,12 @@ from core.theme_manager import ThemeManager
 from ui.player_widget import PlayerWidget
 from ui.playlist_widget import PlaylistWidget
 from ui.dialogs import AddPlaylistDialog, AboutDialog, URLInputDialog
+from ui.xtream_dialog import XtreamLoginDialog, XtreamInfoDialog  # Add Xtream dialogs
 from core.m3u_parser import M3UParser
 from core.playlist import PlaylistManager
 from core.language_manager import LanguageManager, tr
 from core.url_history import PlaylistURLManager
+from ui.content_grid_widget import ContentGridWidget
 
 class MainWindow(QMainWindow):
     """Main application window"""
@@ -29,7 +31,7 @@ class MainWindow(QMainWindow):
     # Application version
     APP_VERSION = "1.0.1"
     
-    def __init__(self, url_manager=None, playlist_history=None, theme_manager=None, language_manager=None):
+    def __init__(self, url_manager=None, playlist_history=None, theme_manager=None, language_manager=None, pin_manager=None):
         super().__init__()
         
         # Initialize components
@@ -39,11 +41,12 @@ class MainWindow(QMainWindow):
         self.url_manager = url_manager or PlaylistURLManager()
         self.playlist_history = playlist_history or PlaylistHistory()
         self.theme_manager = theme_manager or ThemeManager()
+        self.pin_manager = pin_manager
         self.last_loaded_playlist = None  # Track the currently loaded playlist
         self.is_fullscreen = False  # Track fullscreen state
         
         # تعيين أيقونة النافذة
-        app_icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+        app_icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                                   "resources", "icons", "app_icon.png")
         if os.path.exists(app_icon_path):
             self.setWindowIcon(QIcon(app_icon_path))
@@ -118,6 +121,18 @@ class MainWindow(QMainWindow):
         self.all_channels_widget = PlaylistWidget()
         self.tabs.addTab(self.all_channels_widget, tr("All Channels"))
         
+        # Connect tab change signal to handle lazy loading of content
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+        
+        # Movies tab (initially hidden)
+        self.movies_widget = ContentGridWidget()
+        self.movies_tab_index = None  # We'll set this when adding the tab
+        self.movies_loaded = False  # Flag to track if movies have been loaded
+        
+        # Series tab (initially hidden)
+        self.series_widget = ContentGridWidget()
+        self.series_tab_index = None  # We'll set this when adding the tab
+        
         # Add playlists from playlist manager
         for name, playlist in self.playlist_manager.playlists.items():
             playlist_widget = PlaylistWidget()
@@ -172,7 +187,7 @@ class MainWindow(QMainWindow):
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
         self.statusBar.showMessage(tr("Ready"))
-        
+    
     def toggle_sidebar(self):
         """تبديل حالة عرض/إخفاء القائمة الجانبية"""
         if self.is_sidebar_visible:
@@ -218,10 +233,16 @@ class MainWindow(QMainWindow):
         open_url_action.triggered.connect(self.open_playlist_url)
         file_menu.addAction(open_url_action)
         
-        # إضافة خيار Xtream (Soon)
-        xtream_action = QAction(tr("Xtream (Soon)"), self)
-        xtream_action.setEnabled(False)  # تعطيل هذا الخيار لأنه قادم قريباً
+        # Add Xtream option - now enabled
+        xtream_action = QAction(tr("Xtream Connection"), self)
+        xtream_action.triggered.connect(self.open_xtream_connection)
         file_menu.addAction(xtream_action)
+        
+        # Add Xtream info option - initially disabled
+        self.xtream_info_action = QAction(tr("Xtream Connection Info"), self)
+        self.xtream_info_action.triggered.connect(self.show_xtream_info)
+        self.xtream_info_action.setEnabled(False)  # Enabled only after connection
+        file_menu.addAction(self.xtream_info_action)
         
         # Add Playlist Management menu
         manage_playlists_action = QAction(tr("&Manage Playlists..."), self)
@@ -267,6 +288,12 @@ class MainWindow(QMainWindow):
         manage_settings_action = QAction(tr("Manage Settings"), self)
         manage_settings_action.triggered.connect(self.manage_settings)
         settings_menu.addAction(manage_settings_action)
+        
+        # إضافة خيار لإدارة قفل التطبيق
+        if self.pin_manager:
+            pin_lock_action = QAction(tr("App Lock Settings"), self)
+            pin_lock_action.triggered.connect(self.manage_pin_lock)
+            settings_menu.addAction(pin_lock_action)
         
         # Add theme submenu
         theme_menu = settings_menu.addMenu(tr("Theme"))
@@ -343,8 +370,13 @@ class MainWindow(QMainWindow):
     def show_license(self):
         """Show license dialog"""
         try:
-            license_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "LICENSE.md")
+            # Check for LICENSE.txt first (preferred)
+            license_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "LICENSE.txt")
             
+            # Fall back to LICENSE.md if LICENSE.txt doesn't exist
+            if not os.path.exists(license_path):
+                license_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "LICENSE.md")
+                
             if os.path.exists(license_path):
                 with open(license_path, 'r', encoding='utf-8') as f:
                     license_text = f.read()
@@ -396,13 +428,14 @@ class MainWindow(QMainWindow):
         # Container widget for buttons
         self.categories_widget = QWidget()
         self.categories_layout = QHBoxLayout(self.categories_widget)
-        self.categories_layout.setSpacing(10)  # Space between category buttons
+        self.categories_layout.setSpacing(10)  # مسافة بين أزرار الفئات
+        self.categories_layout.setContentsMargins(10, 5, 10, 5)  # هوامش مناسبة
         
         # Add an "All" category button
         self.all_category_btn = QPushButton(tr("All"))
         self.all_category_btn.setCheckable(True)
         self.all_category_btn.setChecked(True)  # Checked by default
-        self.all_category_btn.setMinimumWidth(80)
+        self.all_category_btn.setMinimumWidth(100)  # زيادة العرض الأدنى لتجنب قطع النص
         self.all_category_btn.clicked.connect(lambda: self.select_category(self.all_category_btn, "All"))
         self.categories_layout.addWidget(self.all_category_btn)
         
@@ -415,15 +448,15 @@ class MainWindow(QMainWindow):
         # Add "Contact Us" button on the right
         self.contact_us_button = QPushButton(tr("Contact Us"))
         self.contact_us_button.setObjectName("contact-us-button")
-        self.contact_us_button.setMinimumWidth(100)
-        self.contact_us_button.setMaximumWidth(150)
+        self.contact_us_button.setMinimumWidth(200)  # زيادة العرض الأدنى
+        self.contact_us_button.setMaximumWidth(200)
         self.contact_us_button.clicked.connect(self.show_contact_dialog)
         self.categories_layout.addWidget(self.contact_us_button)
         
         # Set the container as the scroll area widget
         self.categories_scroll.setWidget(self.categories_widget)
         
-        # Style the categories panel
+        # تحسين مظهر لوحة التصنيفات
         self.categories_scroll.setStyleSheet("""
             QScrollArea {
                 border: 1px solid #555;
@@ -436,8 +469,12 @@ class MainWindow(QMainWindow):
                 background-color: #444;
                 color: white;
                 font-weight: bold;
+                min-width: 90px;
             }
             QPushButton:checked {
+                background-color: #0078D7;
+            }
+            QPushButton#contact-us-button {
                 background-color: #0078D7;
             }
         """)
@@ -482,12 +519,19 @@ class MainWindow(QMainWindow):
             # Reset 'All' button to checked state
             self.all_category_btn.setChecked(True)
             
-            # Add new category buttons
+            # تحسين عملية إضافة أزرار الفئات لتفادي التراكب
+            max_buttons_without_scroll = 8  # عدد الأزرار التي يمكن عرضها بدون تمرير
+            group_count = len(self.m3u_parser.groups)
+            
+            # تعديل عرض الأزرار بناءً على عدد الفئات
+            button_width = min(150, max(95, int(700 / max(1, min(group_count, max_buttons_without_scroll)))))
+            
+            # أضف أزرار الفئات الجديدة مع مراعاة الحجم المناسب
             for group in sorted(self.m3u_parser.groups):
                 category_btn = QPushButton(group)
                 category_btn.setCheckable(True)
-                category_btn.setMinimumWidth(80)
-                # Using lambda with default argument to prevent closure issues
+                category_btn.setMinimumWidth(button_width)
+                # استخدام lambda مع معلمة افتراضية لمنع مشاكل الإغلاق
                 category_btn.clicked.connect(
                     lambda checked=False, btn=category_btn, cat=group: self.select_category(btn, cat)
                 )
@@ -502,9 +546,16 @@ class MainWindow(QMainWindow):
             self.statusBar.showMessage(self.tr("Loaded {count} channels").format(count=len(self.m3u_parser.channels)))
             print(f"Updated UI with {len(self.m3u_parser.channels)} channels")
             
+            # معالجة حدث التمرير إذا كان هناك عدد كبير من الأقسام
+            if group_count > max_buttons_without_scroll:
+                # إضافة أسهم تمرير للإشارة إلى وجود المزيد
+                scroll_indicator = QLabel("⟩⟩")
+                scroll_indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                scroll_indicator.setStyleSheet("background: none; color: #FFFFFF; font-size: 14px; font-weight: bold;")
+                self.categories_layout.insertWidget(len(self.category_buttons) + 1, scroll_indicator)
+            
             # Force the UI to update by processing events
-            from PyQt6.QtCore import QCoreApplication
-            QCoreApplication.processEvents()
+            QApplication.processEvents()
             
         except Exception as e:
             print(f"Error updating UI after playlist load: {e}")
@@ -871,6 +922,16 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "خطأ", f"حدث خطأ أثناء فتح مدير الإعدادات: {str(e)}")
 
+    def manage_pin_lock(self):
+        """فتح نافذة إدارة قفل التطبيق"""
+        try:
+            # استدعاء مدير قفل التطبيق
+            from ui.pin_settings_dialog import PinSettingsDialog
+            pin_dialog = PinSettingsDialog(self.pin_manager, self)
+            pin_dialog.exec()
+        except Exception as e:
+            QMessageBox.critical(self, "خطأ", f"حدث خطأ أثناء فتح إعدادات قفل التطبيق: {str(e)}")
+
     def toggle_fullscreen(self):
         """Toggle fullscreen mode"""
         if self.is_fullscreen:
@@ -880,7 +941,7 @@ class MainWindow(QMainWindow):
             
             # Show UI elements that should be visible in normal mode
             self.menuBar().show()
-            self.statusBar.show()
+            self.statusBar().show()
             self.categories_scroll.show()
             self.tabs.tabBar().show()
             self.search_input.show()
@@ -948,6 +1009,260 @@ class MainWindow(QMainWindow):
         # Accept the close event
         event.accept()
 
+    def open_xtream_connection(self):
+        """Open Xtream connection dialog"""
+        try:
+            dialog = XtreamLoginDialog(self)
+            # ربط إشارة الدفعات الجديدة
+            dialog.data_chunk_ready.connect(self.process_xtream_data_chunk)
+            dialog.connection_successful.connect(self.on_xtream_connection_successful)
+            dialog.exec()
+        except Exception as e:
+            QMessageBox.critical(
+                self, 
+                tr("Error"), 
+                tr("Error connecting to Xtream service: {error}").format(error=str(e))
+            )
+
+    def process_xtream_data_chunk(self, chunk):
+        """معالجة دفعة بيانات من Xtream وتحديث الواجهة تدريجيًا"""
+        # يمكننا هنا تحديث القائمة الجزئية للعرض التدريجي
+        try:
+            # إذا لم تكن قائمة القنوات موجودة، نقوم بإنشائها
+            if not hasattr(self.m3u_parser, 'channels') or self.m3u_parser.channels is None:
+                self.m3u_parser.channels = []
+            
+            # إضافة دفعة القنوات الجديدة
+            current_count = len(self.m3u_parser.channels)
+            self.m3u_parser.channels.extend(chunk)
+            
+            # تحديث مجموعات الفئات
+            groups_set = set(self.m3u_parser.groups) if hasattr(self.m3u_parser, 'groups') else set()
+            for channel in chunk:
+                if 'group' in channel and channel['group']:
+                    groups_set.add(channel['group'])
+            self.m3u_parser.groups = sorted(list(groups_set))
+            
+            # تحديث حالة العرض
+            self.statusBar.showMessage(
+                tr("Loading channels: {current}/{total}").format(
+                    current=len(self.m3u_parser.channels),
+                    total="?"  # لا نعرف العدد الإجمالي بعد
+                )
+            )
+            
+            # تحديث الواجهة تدريجيًا كل 500 قناة
+            if current_count == 0 or len(self.m3u_parser.channels) % 500 == 0:
+                self.all_channels_widget.set_channels(self.m3u_parser.channels)
+                self._update_category_buttons()
+                QApplication.processEvents()
+            
+        except Exception as e:
+            print(f"Error processing Xtream data chunk: {e}")
+    
+    def _update_category_buttons(self):
+        """تحديث أزرار الفئات بناءً على المحتوى الحالي"""
+        # احتفظ بزر "الكل" فقط
+        while len(self.category_buttons) > 1:
+            btn = self.category_buttons.pop()
+            btn.deleteLater()
+        
+        # أعد تعيين زر "الكل" إلى حالة محددة
+        self.all_category_btn.setChecked(True)
+        
+        # حساب العرض المناسب للأزرار
+        max_buttons_without_scroll = 8
+        group_count = len(self.m3u_parser.groups)
+        button_width = min(140, max(90, int(700 / max(1, min(group_count, max_buttons_without_scroll)))))
+        
+        # إضافة أزرار الفئات مع الحجم المناسب
+        for group in sorted(self.m3u_parser.groups):
+            category_btn = QPushButton(group)
+            category_btn.setCheckable(True)
+            category_btn.setMinimumWidth(button_width)
+            category_btn.clicked.connect(
+                lambda checked=False, btn=category_btn, cat=group: self.select_category(btn, cat)
+            )
+            self.categories_layout.insertWidget(len(self.category_buttons), category_btn)
+            self.category_buttons.append(category_btn)
+
+    def on_xtream_connection_successful(self, connection_info, channels):
+        """Handle successful Xtream connection"""
+        try:
+            # Store the connection info
+            self.xtream_connection = connection_info
+            
+            # Enable the connection info action
+            self.xtream_info_action.setEnabled(True)
+            
+            # Store channels in m3u_parser for consistency with other methods
+            self.m3u_parser.channels = channels
+            
+            # Extract unique groups for filtering
+            groups = set()
+            for channel in channels:
+                if 'group' in channel:
+                    groups.add(channel['group'])
+            self.m3u_parser.groups = list(groups)
+                
+            # Update UI with loaded channels
+            self._update_after_playlist_load()
+            
+            # Update status bar
+            self.statusBar.showMessage(
+                tr("Connected to Xtream service. Loaded {count} channels.").format(count=len(channels))
+            )
+            
+            # أضف تبويبات الأفلام والمسلسلات ولكن بدون تحميل المحتوى حتى يتم النقر عليها
+            self._add_vod_tabs()
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self, 
+                tr("Error"), 
+                tr("Error processing Xtream data: {error}").format(error=str(e))
+            )
+
+    def _add_vod_tabs(self):
+        """إضافة تبويبات الأفلام والمسلسلات بدون تحميل المحتوى"""
+        try:
+            # Add movies tab if not already added
+            if self.movies_tab_index is None:
+                self.movies_tab_index = self.tabs.addTab(self.movies_widget, tr("Movies"))
+                # Connect the signal
+                self.movies_widget.item_selected.connect(self.play_movie)
+                
+            # Add series tab (disabled with coming soon widget)
+            if self.series_tab_index is None:
+                # استخدام واجهة العرض المعطلة للمسلسلات
+                from ui.coming_soon_widget import ComingSoonWidget
+                self.series_coming_soon_widget = ComingSoonWidget("series")
+                self.series_tab_index = self.tabs.addTab(self.series_coming_soon_widget, tr("Series"))
+                
+                # تحديد نمط لسان التبويبة بلون مختلف
+                self.tabs.tabBar().setTabTextColor(self.series_tab_index, Qt.GlobalColor.red)
+                
+                # إضافة أيقونة معطل إلى لسان التبويبة إذا وجدت
+                try:
+                    icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                          "resources", "icons", "disabled.png")
+                    if os.path.exists(icon_path):
+                        self.tabs.tabBar().setTabIcon(self.series_tab_index, QIcon(icon_path))
+                except:
+                    pass
+            
+            # Reset loading flags
+            self.movies_loaded = False
+            
+        except Exception as e:
+            print(f"Error adding VOD tabs: {e}")
+        
+    def _load_movies_content(self):
+        """تحميل محتوى الأفلام تدريجيًا"""
+        # إظهار مؤشر التحميل
+        self.statusBar.showMessage(tr("Loading movies..."))
+        
+        # تحميل الأفلام في خلفية منفصلة لتجنب تجمد واجهة المستخدم
+        loading_widget = self._create_loading_overlay(self.movies_widget)
+        loading_widget.set_message(tr("جاري تحميل الأفلام..."))
+        loading_widget.show()
+        
+        # استدعاء التحميل بعد فترة قصيرة للسماح لواجهة المستخدم بالتحديث
+        QTimer.singleShot(100, lambda: self._start_loading_movies(loading_widget))
+    
+    def _start_loading_movies(self, loading_widget):
+        """بدء تحميل الأفلام فعليًا"""
+        try:
+            # إنشاء عميل Xtream جديد باستخدام بيانات الاعتماد المخزنة
+            from core.xtream_client import XtreamClient
+            client = XtreamClient(
+                self.xtream_connection.get('server'),
+                self.xtream_connection.get('username'),
+                self.xtream_connection.get('password', '')
+            )
+            
+            # الاتصال بالخادم
+            success, _ = client.connect()
+            if not success:
+                loading_widget.deleteLater()
+                self.statusBar.showMessage(tr("Failed to connect to Xtream server"), 3000)
+                return
+            
+            # الحصول على الأفلام (VOD)
+            movies = client.get_vod_streams()
+            
+            # تم التحميل بنجاح، تحديث الواجهة
+            self.statusBar.showMessage(tr("Loaded {count} movies").format(count=len(movies)), 3000)
+            
+            # تعيين المحتوى في ContentGridWidget
+            self.movies_widget.set_content(movies)
+            
+            # تحديث علم التحميل
+            self.movies_loaded = True
+            
+        except Exception as e:
+            self.statusBar.showMessage(tr("Error loading movies: {error}").format(error=str(e)), 5000)
+            print(f"Error loading VOD content: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        finally:
+            # إزالة مؤشر التحميل
+            loading_widget.deleteLater()
+    
+    def _create_loading_overlay(self, parent):
+        """إنشاء واجهة تحميل متراكبة فوق عنصر الأب"""
+        from ui.loading_widget import LoadingWidget
+        loading = LoadingWidget(parent)
+        # جعل الحجم مطابق للأب
+        loading.resize(parent.size())
+        return loading
+    
+    def _on_tab_changed(self, index):
+        """معالجة تغيير التبويب النشط للتحميل التدريجي"""
+        # تحقق مما إذا كان التبويب المحدد هو تبويب الأفلام وأنه لم يتم تحميله بعد
+        if self.movies_tab_index is not None and index == self.movies_tab_index and not self.movies_loaded:
+            self._load_movies_content()
+        
+        # إذا تم النقر على تبويبة المسلسلات المعطلة، أظهر رسالة للمستخدم
+        elif self.series_tab_index is not None and index == self.series_tab_index:
+            QMessageBox.information(
+                self,
+                tr("Feature Disabled"),
+                tr("The Series feature is currently disabled and will be available in a future update."),
+                QMessageBox.StandardButton.Ok
+            )
+            # العودة إلى التبويبة السابقة
+            previous_tab = 0 if self.tabs.count() > 0 else self.movies_tab_index
+            self.tabs.setCurrentIndex(previous_tab)
+
+    def play_movie(self, movie):
+        """Play a movie from the movie grid"""
+        if not movie:
+            return
+            
+        print(f"Playing movie: {movie.get('name')}, URL: {movie.get('url')}")
+        self.statusBar.showMessage(tr("Playing: {movie_name}").format(movie_name=movie.get('name')))
+        
+        # Play the movie
+        self.player_widget.play(movie.get('url'), movie.get('name'))
+    
+    def show_series_details(self, series):
+        """عرض تفاصيل المسلسل المحدد - معطلة حاليًا"""
+        # بما أن ميزة المسلسلات معطلة، نعرض رسالة للمستخدم
+        QMessageBox.information(
+            self,
+            tr("Feature Disabled"),
+            tr("The Series feature is currently disabled and will be available in a future update.")
+        )
+        return
+
+    def show_xtream_info(self):
+        """Show dialog with Xtream connection information"""
+        if hasattr(self, 'xtream_connection'):
+            dialog = XtreamInfoDialog(self.xtream_connection, self)
+            dialog.exec()
+
 class ChangelogDialog(QDialog):
     """Dialog for displaying version changelog"""
     
@@ -955,7 +1270,7 @@ class ChangelogDialog(QDialog):
         super().__init__(parent)
         
         # Get the application version from MainWindow
-        self.app_version = parent.APP_VERSION if hasattr(parent, 'APP_VERSION') else "1.0.1"
+        self.app_version = parent.APP_VERSION if hasattr(parent, 'APP_VERSION') else "1.0.3"
         self.setWindowTitle(tr("Updates & Changelog"))
         self.setMinimumSize(500, 400)
         
@@ -965,7 +1280,7 @@ class ChangelogDialog(QDialog):
         # Current version info
         current_version_layout = QHBoxLayout()
         current_version_icon = QLabel()
-        current_version_icon.setPixmap(QIcon(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+        current_version_icon.setPixmap(QIcon(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                                            "resources", "icons", "check.png")).pixmap(32, 32))
         current_version_layout.addWidget(current_version_icon)
         
@@ -1018,6 +1333,30 @@ class ChangelogDialog(QDialog):
                 .version { color: #0078D7; font-weight: bold; }
                 .date { color: #aaa; font-size: small; }
             </style>
+            <h3>إصدار <span class="version">1.0.3</span> <span class="date">(03 ابريل 2025)</span></h3>
+            <ul>
+                <li>إضافة دعم الاتصال بسيرفرات Xtream للحصول على قوائم البث والأفلام</li>
+                <li>تحسين معالجة أخطاء تحميل الصور وتقليل رسائل الخطأ المتكررة</li>
+                <li>إضافة زر "إعادة تحميل الصور" لمحاولة تحميل الصور الفاشلة</li>
+                <li>تحسين واجهة عرض الافلام والمسلسلات</li>
+                <li>معالجة مشاكل الاتصال بالانترنت أثناء تحميل الصور</li>
+                <li>تحسين أداء العرض مع المحتوى الكبير</li>
+                <li>إصلاح مشكلة الاختفاء الجانبي للافلام في شاشات العرض المختلفة</li>
+                <li>تعديل عدد الاعمدة ديناميكياً حسب عرض الشاشة</li>
+                <li>تقليل استهلاك موارد النظام عند تحميل الصور</li>
+            </ul>
+            
+            <h3>إصدار <span class="version">1.0.2</span> <span class="date">(2 ابريل 2025)</span></h3>
+            <ul>
+                <li>إضافة قائمة "اتصل بنا" مع خيارات دعم متعددة</li>
+                <li>تحسين واجهة المستخدم مع تأثيرات بصرية إضافية</li>
+                <li>تعزيز مشغل الفيديو مع دعم المزيد من التنسيقات</li>
+                <li>تحسين دعم اللغة العربية</li>
+                <li>إصلاح مشاكل تحميل قوائم التشغيل من مصادر مختلفة</li>
+                <li>زيادة استقرار وأداء التطبيق</li>
+                <li>إضافة المزيد من خيارات إدارة قوائم التشغيل المخصصة</li>
+            </ul>
+            
             <h3>إصدار <span class="version">1.0.1</span> <span class="date">(01 ابريل 2025)</span></h3>
             <ul>
                 <li>إضافة تمييز للقناة النشطة في قائمة القنوات لتسهيل التعرف على القناة الحالية</li>
@@ -1031,6 +1370,7 @@ class ChangelogDialog(QDialog):
                 <li>تحسين عرض قوائم التشغيل</li>
                 <li>تحسينات عامة في واجهة المستخدم</li>
             </ul>
+            
             <h3>إصدار <span class="version">1.0.0</span> <span class="date">(28 مارس 2025)</span></h3>
             <ul>
                 <li>الإصدار الأولي</li>
@@ -1049,6 +1389,19 @@ class ChangelogDialog(QDialog):
                 .version { color: #0078D7; font-weight: bold; }
                 .date { color: #aaa; font-size: small; }
             </style>
+            <h3>Version <span class="version">1.0.3</span> <span class="date">(April 3, 2025)</span></h3>
+            <ul>
+                <li>Added Xtream servers connection support for streaming lists and movies</li>
+                <li>Improved image loading error handling and reduced repetitive error messages</li>
+                <li>Added "Reload Images" button to retry failed image loads</li>
+                <li>Enhanced movie and series display interface</li>
+                <li>Fixed network connectivity issues during image loading</li>
+                <li>Improved display performance with large content</li>
+                <li>Fixed side cutoff issues for movies on different screen sizes</li>
+                <li>Dynamically adjust column count based on screen width</li>
+                <li>Reduced system resource usage when loading images</li>
+            </ul>
+            
             <h3>Version <span class="version">1.0.2</span> <span class="date">(October 15, 2024)</span></h3>
             <ul>
                 <li>Added "Contact Us" functionality with multiple support options</li>
@@ -1059,6 +1412,7 @@ class ChangelogDialog(QDialog):
                 <li>Increased application stability and performance</li>
                 <li>Added more management options for custom playlists</li>
             </ul>
+            
             <h3>Version <span class="version">1.0.1</span> <span class="date">(July 1, 2024)</span></h3>
             <ul>
                 <li>Added highlighting for active channel in the playlist for better visibility</li>
@@ -1072,6 +1426,7 @@ class ChangelogDialog(QDialog):
                 <li>Improved playlist display</li>
                 <li>General UI improvements</li>
             </ul>
+            
             <h3>Version <span class="version">1.0.0</span> <span class="date">(March 28, 2024)</span></h3>
             <ul>
                 <li>Initial release</li>
